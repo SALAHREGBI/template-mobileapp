@@ -1,0 +1,61 @@
+###############################################################################
+# daba.ma — Local Development Infrastructure
+# Services: PostgreSQL 16 + PostGIS | Redis Stack
+###############################################################################
+
+services:
+
+  # ── PostgreSQL 16 with PostGIS extension ────────────────────────────────
+  postgres:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: daba_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: daba_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: regbi
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Run initialization scripts on first boot
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d daba_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - daba_network
+
+  # ── Redis Stack (Redis + RedisJSON + RediSearch + RedisTimeSeries) ───────
+  redis:
+    image: redis/redis-stack:7.4.0-v1
+    container_name: daba_redis
+    restart: unless-stopped
+    environment:
+      REDIS_ARGS: "--requirepass daba_redis_secret --loglevel warning"
+    ports:
+      - "6379:6379"   # Redis
+      - "8001:8001"   # RedisInsight UI
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "daba_redis_secret", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - daba_network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  daba_network:
+    driver: bridge
+    name: daba_network
